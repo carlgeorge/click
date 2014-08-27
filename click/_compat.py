@@ -8,6 +8,7 @@ from weakref import WeakKeyDictionary
 
 PY2 = sys.version_info[0] == 2
 WIN = sys.platform.startswith('win')
+MAC = sys.platform == 'darwin'
 DEFAULT_COLUMNS = 80
 
 
