@@ -5,7 +5,7 @@ from collections import deque
 from ._compat import text_type, open_stream, get_streerror, string_types, \
      PY2, binary_streams, text_streams, filename_to_ui, \
      auto_wrap_for_ansi, strip_ansi, should_strip_ansi, \
-     _default_text_stdout, _default_text_stderr, is_bytes, WIN
+     _default_text_stdout, _default_text_stderr, is_bytes, WIN, MAC
 
 if not PY2:
     from ._compat import _find_binary_writer
@@ -415,16 +415,55 @@ def get_app_dir(app_name, roaming=True, force_posix=False):
                         application support folder.
     """
     if WIN:
-        key = roaming and 'APPDATA' or 'LOCALAPPDATA'
-        folder = os.environ.get(key)
-        if folder is None:
-            folder = os.path.expanduser('~')
-        return os.path.join(folder, app_name)
+        return get_win_dir(app_name, roaming)
     if force_posix:
         return os.path.join(os.path.expanduser('~/.' + _posixify(app_name)))
-    if sys.platform == 'darwin':
-        return os.path.join(os.path.expanduser(
-            '~/Library/Application Support'), app_name)
-    return os.path.join(
-        os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
-        _posixify(app_name))
+    return get_config_dir(app_name)
+
+
+def get_win_dir(app_name, roaming=True):
+    key = roaming and 'APPDATA' or 'LOCALAPPDATA'
+    folder = os.environ.get(key)
+    if folder is None:
+        folder = os.path.expanduser('~')
+    return os.path.join(folder, app_name)
+
+
+def get_config_dir(app_name):
+    if MAC:
+        config_dir_base = os.path.expanduser('~/Library/Application Support')
+        config_dir = os.path.join(config_dir, app_name)
+    else:
+        base = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+        config_dir = os.path.join(config_dir, _posixify(app_name))
+    return config_dir
+
+
+def get_cache_dir(app_name):
+    if MAC:
+        cache_dir = os.path.expanduser('~/Library/Caches')
+        return os.path.join(cache_dir, app_name)
+    else:
+        cache_dir = os.environ.get('XDG_CACHE_HOME',
+            os.path.expanduser('~/.cache'))
+        return os.path.join(cache_dir, _posixify(app_name))
+
+
+def get_data_dir(app_name):
+    if MAC:
+        data_dir = os.path.expanduser('~/Library/Application Support')
+        return os.path.join(data_dir, app_name)
+    else:
+        data_dir = os.environ.get('XDG_DATA_HOME',
+            os.path.expanduser('~/.local/share'))
+        return os.path.join(data_dir, _posixify(app_name))
+
+
+def get_state_dir(app_name):
+    if MAC:
+        state_dir = os.path.expanduser('~/Library/Application Support')
+        return os.path.join(state_dir, app_name)
+    else:
+        state_dir = os.environ.get('XDG_STATE_HOME',
+            os.path.expanduser('~/.local/state'))
+        return os.path.join(state_dir, _posixify(app_name))
