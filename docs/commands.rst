@@ -168,13 +168,12 @@ Example:
     def sync():
         click.echo('The subcommand')
 
-And how it works in practice::
+And how it works in practice:
 
-    $ python tool.py
-    I was invoked without subcommand
-    $ python tool.py sync
-    I am about to invoke sync
-    The subcommand
+.. click:run::
+
+    invoke(cli, prog_name='tool', args=[])
+    invoke(cli, prog_name='tool', args=['sync'])
 
 .. _custom-multi-commands:
 
@@ -273,6 +272,150 @@ And what it looks like:
 
 In case a command exists in more than one source, the first source wins.
 
+
+.. _multi-command-chaining:
+
+Multi Command Chaining
+----------------------
+
+.. versionadded:: 3.0
+
+Sometimes it is useful to be allowed to invoke more than one subcommand in
+one go.  For instance if you have installed a setuptools package before
+ouy might be familiar with the ``setup.py sdist bdist_wheel upload``
+command chain which invokes ``dist`` before ``bdist_wheel`` before
+``upload``.  Starting with Click 3.0 this is very simple to implement.
+All you have to do is to pass ``chain=True`` to your multicommand:
+
+.. click:example::
+
+    @click.group(chain=True)
+    def cli():
+        pass
+
+
+    @cli.command('sdist')
+    def sdist():
+        click.echo('sdist called')
+
+
+    @cli.command('bdist_wheel')
+    def bdist_wheel():
+        click.echo('bdist_wheel called')
+
+Now you can invoke it like this:
+
+.. click:run::
+
+    invoke(cli, prog_name='setup.py', args=['sdist', 'bdist_wheel'])
+
+When using multi command chaining you can only have one command (the last)
+use ``nargs=-1`` on an argument.  Other than that there are no
+restrictions on how they work.  They can accept options and arguments as
+normal.
+
+Another note: the :attr:`Context.invoked_subcommand` attribute is a bit
+useless for multi commands as it will give ``'*'`` as value if more than
+one command is invoked.  This is necessary because the handling of
+subcommands happens one after another so the exact subcommands that will
+be handled are not yet available when the callback fires.
+
+
+Multi Command Pipelines
+-----------------------
+
+.. versionadded:: 3.0
+
+A very common usecase of multi command chaining is to have one command
+process the result of the previous command.  There are various ways in
+which this can be facilitated.  The most obvious way is to store a value
+on the context object and process it from function to function.  This
+works by decorating a function with :func:`pass_context` after which the
+context object is provided and a subcommand can store it's data there.
+
+Another way to accomplish this is to setup pipelines by returning
+processing functions.  Think of it like this: when a subcommand gets
+invoked it processes all of it's parameters and comes up with a plan of
+how to do it's processing.  At that point it then returns a processing
+function and returns.
+
+Where do the returned functions go?  The chained multicommand can register
+a callback with :meth:`MultiCommand.resultcallback` that goes over all
+these functions and then invoke them.
+
+To make this a bit more concrete consider this example:
+
+.. click:example::
+
+    @click.group(chain=True, invoke_without_command=True)
+    @click.option('-i', '--input', type=click.File('r'))
+    def cli(input):
+        pass
+
+    @cli.resultcallback()
+    def process_pipeline(processors, input):
+        iterator = (x.rstrip('\r\n') for x in input)
+        for processor in processors:
+            iterator = processor(iterator)
+        for item in iterator:
+            click.echo(item)
+
+    @cli.command('uppercase')
+    def make_uppercase():
+        def processor(iterator):
+            for line in iterator:
+                yield line.upper()
+        return processor
+
+    @cli.command('lowercase')
+    def make_lowercase():
+        def processor(iterator):
+            for line in iterator:
+                yield line.lower()
+        return processor
+
+    @cli.command('strip')
+    def make_strip():
+        def processor(iterator):
+            for line in iterator:
+                yield line.strip()
+        return processor
+
+That's a lot in one go, so let's go through it step by step.
+
+1.  The first thing is to make a :func:`group` that is chainable.  In
+    addition to that we also instruct Click to invoke even if no
+    subcommand is defined.  If this would not be done, then invoking an
+    empty pipeline would produce the help page instead of running the
+    result callbacks.
+2.  The next thing we do is to register a result callback on our group.
+    This callback will be invoked with an argument which is the list of
+    all return values of all subcommands and then the same keyword
+    parameters as our group itself.  This means we can access the input
+    file easily there without having to use the context object.
+3.  In this result callback we create an iterator of all the lines in the
+    input file and then pass this iterator through all the returned
+    callbacks from all subcommands and finally we print all lines to
+    stdout.
+
+After that point we can register as many subcommands as we want and each
+subcommand can return a processor function to modify the stream of lines.
+
+One important thing of note is that Click shuts down the context after
+each callback has been run.  This means that for instance file types
+cannot be accessed in the `processor` functions as the files will already
+be closed there.  This limitation is unlikely to change because it would
+make resource handling much more complicated.  For such it's recommended
+to not use the file type and manually open the file through
+:func:`open_file`.
+
+For a more complex example that also improves upon handling of the
+pipelines have a look at the `imagepipe multi command chaining demo
+<https://github.com/mitsuhiko/click/tree/master/examples/imagepipe>`__ in
+the Click repository.  It implements a pipeline based image editing tool
+that has a nice internal structure for the pipelines.
+
+
 Overriding Defaults
 -------------------
 
@@ -360,3 +503,50 @@ And again the example in action:
 .. click:run::
 
     invoke(cli, prog_name='cli', args=['runserver'])
+
+
+Command Return Values
+---------------------
+
+.. versionadded:: 3.0
+
+One of the new introductions in Click 3.0 is the full support for return
+values from command callbacks.  This enables a whole range of features
+that were previously hard to implement.
+
+In essence any command callback can now return a value.  This return value
+is bubbled to certain receivers.  One usecase for this has already been
+show in the example of :ref:`multi-command-chaining` where it has been
+demonstrated that chained multi commands can have callbacks that process
+all return values.
+
+When working with command return values in Click, this is what you need to
+know:
+
+-   The return value of a command callback is generally returned from the
+    :meth:`BaseCommand.invoke` method.  The exception to this rule has to
+    do with :class:`Group`\s:
+
+    *   In a group the return value is generally the return value of the
+        subcommand invoked.  The only exception to this rule is that the
+        return value is the return value of the group callback if it's
+        invoked without arguments and `invoke_without_command` is enabled.
+    *   If a group is set up for chaining then the return value is a list
+        of all subcommands' results.
+    *   Return values of groups can be processed through a
+        :attr:`MultiCommand.result_callback`.  This is invoked with the
+        list of all return values in chain mode, or the single return
+        value in case of non chained commands.
+
+-   The return value is bubbled through from the :meth:`Context.invoke`
+    and :meth:`Context.forward` methods.  This is useful in situations
+    where you internally want to call into another command.
+
+-   Click does not have any hard requirements for the return values and
+    does not use them itself.  This allows return values to be used for
+    custom decorators or workflows (like in the multi command chaining
+    example).
+
+-   When a Click script is invoked as command line application (through
+    :meth:`BaseCommand.main`) the return value is ignored unless the
+    `standalone_mode` is disabled in which case it's bubbled through.

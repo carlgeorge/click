@@ -3,10 +3,44 @@ Click Changelog
 
 This contains all major version changes between Click releases.
 
+Version 4.0
+-----------
+
+(codename to be selected, release date to be decided)
+
+- Added `color` parameters to lots of interfaces that directly or indirectly
+  call into echoing.  This previously was always autodetection (with the
+  exception of the `echo_via_pager` function).  Now you can forcefully
+  enable or disable it, overriding the auto detection of Click.
+
+Version 3.2
+-----------
+
+(bugfix release, released on August 22nd 2014)
+
+- Added missing `err` parameter forwarding to the `secho` function.
+- Fixed default parameters not being handled properly by the context
+  invoke method.  This is a backwards incompatible change if the function
+  was used improperly.  See :ref:`upgrade-to-3.2` for more information.
+- Removed the `invoked_subcommands` attribute largely.  It is not possible
+  to provide it to work error free due to how the parsing works so this
+  API has been deprecated.  See :ref:`upgrade-to-3.2` for more information.
+- Restored the functionality of `invoked_subcommand` which was broken as
+  a regression in 3.1.
+
+Version 3.1
+-----------
+
+(bugfix release, released on August 13th 2014)
+
+- Fixed a regression that caused contexts of subcommands to be
+  created before the parent command was invoked which was a
+  regression from earlier Click versions.
+
 Version 3.0
 -----------
 
-(codename and release date to be decided)
+(codename "clonk clonk", released on August 12th 2014)
 
 - formatter now no longer attempts to accomodate for terminals
   smaller than 50 characters.  If that happens it just assumes
@@ -21,6 +55,35 @@ Version 3.0
   now, Click will give an error message instead of silently
   passing.  This should catch situations where users wanted to
   created arguments instead of options.
+- Restructured Click internally to support vendoring.
+- Added support for multi command chaining.
+- Added support for defaults on options with `multiple` and
+  options and arguments with `nargs != 1`.
+- label passed to `progressbar` is no longer rendered with
+  whitespace stripped.
+- added a way to disable the standalone mode of the `main`
+  method on a Click command to be able to handle errors better.
+- added support for returning values from command callbacks.
+- added simplifications for printing to stderr from `echo`.
+- added result callbacks for groups.
+- entering a context multiple times defers the cleanup until
+  the last exit occurs.
+- added `open_file`.
+
+Version 2.6
+-----------
+
+(bugfix release, released on August 11th 2014)
+
+- Fixed an issue where the wrapped streams on Python 3 would be reporting
+  incorrect values for seekable.
+
+Version 2.5
+-----------
+
+(bugfix release, released on July 28th 2014)
+
+- Fixed a bug with text wrapping on Python 3.
 
 Version 2.4
 -----------

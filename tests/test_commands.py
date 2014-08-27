@@ -7,7 +7,7 @@ def test_other_command_invoke(runner):
     @click.command()
     @click.pass_context
     def cli(ctx):
-        return ctx.invoke(other_cmd, 42)
+        return ctx.invoke(other_cmd, arg=42)
 
     @click.command()
     @click.argument('arg', type=click.INT)
@@ -17,6 +17,23 @@ def test_other_command_invoke(runner):
     result = runner.invoke(cli, [])
     assert not result.exception
     assert result.output == '42\n'
+
+
+def test_other_command_invoke_invalid_custom_error(runner):
+    @click.command()
+    @click.pass_context
+    def cli(ctx):
+        return ctx.invoke(other_cmd, 42)
+
+    @click.command()
+    @click.argument('arg', type=click.INT)
+    def other_cmd(arg):
+        click.echo(arg)
+
+    result = runner.invoke(cli, [])
+    assert isinstance(result.exception, RuntimeError)
+    assert 'upgrading-to-3.2' in str(result.exception)
+    assert click.__version__ < '5.0'
 
 
 def test_other_command_forward(runner):
@@ -174,3 +191,64 @@ def test_base_command(runner):
         '  -f FILE, --file=FILE  write report to FILE',
         '  -q, --quiet           don\'t print status messages to stdout',
     ]
+
+
+def test_object_propagation(runner):
+    for chain in False, True:
+        @click.group(chain=chain)
+        @click.option('--debug/--no-debug', default=False)
+        @click.pass_context
+        def cli(ctx, debug):
+            if ctx.obj is None:
+                ctx.obj = {}
+            ctx.obj['DEBUG'] = debug
+
+        @cli.command()
+        @click.pass_context
+        def sync(ctx):
+            click.echo('Debug is %s' % (ctx.obj['DEBUG'] and 'on' or 'off'))
+
+        result = runner.invoke(cli, ['sync'])
+        assert result.exception is None
+        assert result.output == 'Debug is off\n'
+
+
+def test_other_command_invoke_with_defaults(runner):
+    @click.command()
+    @click.pass_context
+    def cli(ctx):
+        return ctx.invoke(other_cmd)
+
+    @click.command()
+    @click.option('--foo', type=click.INT, default=42)
+    @click.pass_context
+    def other_cmd(ctx, foo):
+        assert ctx.info_name == 'other_cmd'
+        click.echo(foo)
+
+    result = runner.invoke(cli, [])
+    assert not result.exception
+    assert result.output == '42\n'
+
+
+def test_invoked_subcommand(runner):
+    @click.group(invoke_without_command=True)
+    @click.pass_context
+    def cli(ctx):
+        if ctx.invoked_subcommand is None:
+            click.echo('no subcommand, use default')
+            ctx.invoke(sync)
+        else:
+            click.echo('invoke subcommand')
+
+    @cli.command()
+    def sync():
+        click.echo('in subcommand')
+
+    result = runner.invoke(cli, ['sync'])
+    assert not result.exception
+    assert result.output == 'invoke subcommand\nin subcommand\n'
+
+    result = runner.invoke(cli)
+    assert not result.exception
+    assert result.output == 'no subcommand, use default\nin subcommand\n'

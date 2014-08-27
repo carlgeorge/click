@@ -62,6 +62,61 @@ And it can then be used like this:
     def pop():
         pass
 
+Parameter Modifications
+-----------------------
+
+Parameters (options and arguments) are forwarded to the command callbacks
+as you have seen.  One common way to prevent a parameter from being passed
+to the callback is the `expose_value` argument to a parameter which hides
+the parameter entirely.  The way this works is that the :class:`Context`
+object has a :attr:`~Context.params` attribute which is a dictionary of
+all parameters.  Whatever is in that dictionary is being passed to the
+callbacks.
+
+This can be used to make up addition parameters.  Generally this pattern
+is not recommended but in some cases it can be useful.  At the very least
+it's good to know that the system works this way.
+
+.. click:example::
+
+    import urllib
+
+    def open_url(ctx, param, value):
+        if value is not None:
+            ctx.params['fp'] = urllib.urlopen(value)
+            return value
+
+    @click.command()
+    @click.option('--url', callback=open_url)
+    def cli(url, fp=None):
+        if fp is not None:
+            click.echo('%s: %s' % (url, fp.code))
+
+In this case the callback returns the URL unchanged but also passes a
+second ``fp`` value to the callback.  What's more recommended is to pass
+the information in a wrapper however:
+
+.. click:example::
+
+    import urllib
+
+    class URL(object):
+
+        def __init__(self, url, fp):
+            self.url = url
+            self.fp = fp
+
+    def open_url(ctx, param, value):
+        if value is not None:
+            return URL(value, urllib.urlopen(value))
+
+    @click.command()
+    @click.option('--url', callback=open_url)
+    def cli(url):
+        if url is not None:
+            click.echo('%s: %s' % (url.url, url.fp.code))
+
+
 Token Normalization
 -------------------
 
@@ -154,7 +209,7 @@ provides the arguments to the script; if there is an option called ``--foo``
 and an option called ``--bar`` and the user calls it as ``--bar
 --foo``, then the callback for ``bar`` will fire before the one for ``foo``.
 
-There are two exceptions to this rule which are important to know:
+There are three exceptions to this rule which are important to know:
 
 Eagerness:
     An option can be set to be "eager".  All eager parameters are
@@ -176,7 +231,7 @@ Repeated parameters:
 
     Note that even if a parameter does not allow multiple versions, Click
     will still accept the position of the first, but it will ignore every
-    value except the first.  The reason for this is to allow composability
+    value except the last.  The reason for this is to allow composability
     through shell aliases that set defaults.
 
 Missing parameters:

@@ -122,3 +122,51 @@ def test_echo_via_pager(monkeypatch, capfd):
     click.echo_via_pager('haha')
     out, err = capfd.readouterr()
     assert out == 'haha\n'
+
+
+def test_echo_color_flag(monkeypatch, capfd):
+    isatty = True
+    monkeypatch.setattr(click._compat, 'isatty', lambda x: isatty)
+
+    text = 'foo'
+    styled_text = click.style(text, fg='red')
+    assert styled_text == '\x1b[31mfoo\x1b[0m'
+
+    click.echo(styled_text, color=False)
+    out, err = capfd.readouterr()
+    assert out == text + '\n'
+
+    click.echo(styled_text, color=True)
+    out, err = capfd.readouterr()
+    assert out == styled_text + '\n'
+
+    isatty = True
+    click.echo(styled_text)
+    out, err = capfd.readouterr()
+    assert out == styled_text + '\n'
+
+    isatty = False
+    click.echo(styled_text)
+    out, err = capfd.readouterr()
+    assert out == text + '\n'
+
+
+def test_open_file(runner):
+    with runner.isolated_filesystem():
+        with open('hello.txt', 'w') as f:
+            f.write('Cool stuff')
+
+        @click.command()
+        @click.argument('filename')
+        def cli(filename):
+            with click.open_file(filename) as f:
+                click.echo(f.read())
+            click.echo('meep')
+
+        result = runner.invoke(cli, ['hello.txt'])
+        assert result.exception is None
+        assert result.output == 'Cool stuff\nmeep\n'
+
+        result = runner.invoke(cli, ['-'], input='foobar')
+        assert result.exception is None
+        assert result.output == 'foobar\nmeep\n'
