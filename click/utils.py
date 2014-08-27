@@ -422,6 +422,26 @@ def get_app_dir(app_name, roaming=True, force_posix=False):
 
 
 def get_win_dir(app_name, roaming=True):
+    r"""Returns the application data folder on Windows.
+
+    For an app called ``"Foo Bar"``, the following folders could be returned:
+
+    Win XP (roaming):
+      ``C:\Documents and Settings\<user>\Local Settings\Application Data\Foo Bar``
+    Win XP (not roaming):
+      ``C:\Documents and Settings\<user>\Application Data\Foo Bar``
+    Win 7 (roaming):
+      ``C:\Users\<user>\AppData\Roaming\Foo Bar``
+    Win 7 (not roaming):
+      ``C:\Users\<user>\AppData\Local\Foo Bar``
+
+    .. versionadded:: 3.3
+
+    :param app_name: the application name.  This should be properly capitalized
+                     and can contain whitespace.
+    :param roaming: controls if the folder should be roaming or not on Windows.
+                    Has no affect otherwise.
+    """
     key = roaming and 'APPDATA' or 'LOCALAPPDATA'
     folder = os.environ.get(key)
     if folder is None:
