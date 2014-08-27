@@ -379,7 +379,7 @@ def format_filename(filename, shorten=False):
     return filename_to_ui(filename)
 
 
-def get_app_dir(app_name, roaming=True, force_posix=False, category='CONFIG'):
+def get_app_dir(app_name, roaming=True, force_posix=False):
     r"""Returns the config folder for the application.  The default behavior
     is to return whatever is most appropriate for the operating system.
 
@@ -413,8 +413,6 @@ def get_app_dir(app_name, roaming=True, force_posix=False, category='CONFIG'):
                         folder will be stored in the home folder with a leading
                         dot instead of the XDG config home or darwin's
                         application support folder.
-    :param category: the type of directory to return.  Valid values are CONFIG,
-                     CACHE, DATA, or STATE.
     """
     if WIN:
         key = roaming and 'APPDATA' or 'LOCALAPPDATA'
@@ -427,12 +425,6 @@ def get_app_dir(app_name, roaming=True, force_posix=False, category='CONFIG'):
     if sys.platform == 'darwin':
         return os.path.join(os.path.expanduser(
             '~/Library/Application Support'), app_name)
-    XDG = {
-        'CONFIG': os.path.expanduser('~/.config'),
-        'CACHE': os.path.expanduser('~/.cache'),
-        'DATA': os.path.expanduser('~/.local/share'),
-        'STATE': os.path.expanduser('~/.local/state')
-    }
     return os.path.join(
-        os.environ.get('XDG_' + category + '_HOME', XDG.get(category)),
+        os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
         _posixify(app_name))
